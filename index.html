@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WallRush Engine Helper</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #f8f9fc;
+      --grid-line: #e2e8f0;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --p1-color: #2563eb;
+      --p1-grad: radial-gradient(circle at 35% 35%, #93c5fd, #2563eb 60%, #1e3a8a);
+      --p2-color: #dc2626;
+      --p2-grad: radial-gradient(circle at 35% 35%, #fca5a5, #dc2626 60%, #7f1d1d);
+      --wall-placed: #8b5a2b; /* Кирпичный цвет стен */
+      --shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+    body.dark-theme {
+      --bg: #0f172a;
+      --grid-line: #334155;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    
+    body {
+      background: var(--bg);
+      background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 20px 20px;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 12px;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Верхняя панель */
+    .top-bar { width: 100%; max-width: 400px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .logo { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+    .reset-btn { background: var(--card-bg); border: 1px solid var(--grid-line); padding: 8px 14px; border-radius: 12px; font-weight: 600; color: var(--text); box-shadow: var(--shadow); cursor: pointer; }
+
+    /* Плашки игроков */
+    .badges-row { width: 100%; max-width: 400px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+    .badge {
+      flex: 1; background: var(--card-bg); border-radius: 20px; padding: 6px 12px; display: flex; align-items: center; gap: 8px;
+      box-shadow: var(--shadow); border: 2px solid transparent; transition: 0.2s; cursor: pointer;
+    }
+    .badge.active-p1 { border-color: var(--p1-color); box-shadow: 0 0 15px rgba(37,99,235,0.3); background: rgba(37,99,235,0.05); }
+    .badge.active-p2 { border-color: var(--p2-color); box-shadow: 0 0 15px rgba(220,38,38,0.3); background: rgba(220,38,38,0.05); }
+    .b-avatar { width: 34px; height: 34px; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .b-avatar.p1 { background: var(--p1-grad); }
+    .b-avatar.p2 { background: var(--p2-grad); }
+    .b-info { display: flex; flex-direction: column; }
+    .b-name { font-size: 14px; font-weight: 700; }
+    .b-walls { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .vs-text { font-weight: 800; color: var(--text-muted); font-size: 14px; }
+
+    /* Игровое поле */
+    .board-container {
+      width: 100%; max-width: 400px; aspect-ratio: 1; background: var(--card-bg); border-radius: 16px;
+      position: relative; box-shadow: var(--shadow); border: 3px solid #cbd5e1;
+      overflow: hidden; touch-action: none;
+    }
+    .dark-theme .board-container { border-color: #334155; }
+    
+    /* Градиенты баз */
+    .goal-top { position: absolute; top: 0; left: 0; right: 0; height: 40px; background: linear-gradient(to bottom, rgba(220,38,38,0.25), transparent); z-index: 1; pointer-events: none; }
+    .goal-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(to top, rgba(37,99,235,0.25), transparent); z-index: 1; pointer-events: none; }
+
+    /* Сетка */
+    .grid-lines { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(9, 1fr); pointer-events: none; z-index: 2; }
+    .grid-cell { border-right: 1px solid var(--grid-line); border-bottom: 1px solid var(--grid-line); }
+    .grid-cell:nth-child(9n) { border-right: none; }
+    .grid-cell:nth-last-child(-n+9) { border-bottom: none; }
+
+    /* Элементы на поле */
+    .elements-layer { position: absolute; inset: 0; z-index: 3; }
+    
+    .pawn {
+      position: absolute; width: 8.5%; height: 8.5%; border-radius: 50%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.5); transform: translate(-50%, -50%); transition: all 0.2s ease;
+    }
+    .p1-pawn { background: var(--p1-grad); }
+    .p2-pawn { background: var(--p2-grad); }
+    
+    .legal-dot {
+      position: absolute; width: 14px; height: 14px; background: var(--p1-color); border-radius: 50%;
+      transform: translate(-50%, -50%); opacity: 0.5; cursor: pointer; box-shadow: 0 0 8px currentColor;
+    }
+    .legal-dot.p2-dot { background: var(--p2-color); }
+
+    .placed-wall { position: absolute; background: url('data:image/svg+xml;utf8,<svg width="20" height="10" viewBox="0 0 20 10" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="10" fill="%23a0522d"/><path d="M0 5h20M10 0v5M5 5v5M15 5v5" stroke="%238b4513" stroke-width="1"/></svg>'); box-shadow: 0 4px 8px rgba(0,0,0,0.4); border-radius: 3px; }
+    .placed-wall.h { height: 8px; transform: translateY(-50%); z-index: 4; }
+    .placed-wall.v { width: 8px; transform: translateX(-50%); z-index: 4; }
+
+    .ghost-wall { position: absolute; border-radius: 3px; display: none; z-index: 10; pointer-events: none; box-shadow: 0 0 10px currentColor; }
+    .ghost-wall.h { height: 8px; transform: translateY(-50%); }
+    .ghost-wall.v { width: 8px; transform: translateX(-50%); }
+
+    /* Нижняя панель со стенами */
+    .drag-panel {
+      width: 100%; max-width: 320px; background: var(--card-bg); border-radius: 24px;
+      padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+      margin-top: 24px; box-shadow: var(--shadow);
+    }
+    .wall-counter { font-weight: 800; font-size: 16px; color: var(--text); }
+    .drag-item {
+      background: var(--bg); padding: 12px 24px; border-radius: 12px; cursor: grab;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center;
+    }
+    .icon-h { width: 30px; height: 8px; background: #a0522d; border-radius: 2px; border: 1px solid #8b4513; }
+    .icon-v { width: 8px; height: 30px; background: #a0522d; border-radius: 2px; border: 1px solid #8b4513; }
+
+    /* Кнопки действий */
+    .action-row { width: 100%; max-width: 400px; display: flex; gap: 10px; margin-top: 20px; }
+    .calc-btn { flex: 1; background: var(--text); color: var(--card-bg); font-weight: 700; padding: 14px; border-radius: 16px; border: none; font-size: 16px; cursor: pointer; }
+    .undo-btn { background: var(--card-bg); border: none; padding: 14px 20px; border-radius: 16px; font-size: 18px; cursor: pointer; box-shadow: var(--shadow); }
+
+    /* Настройки (Полная страница) */
+    .settings-btn { position: fixed; bottom: 20px; right: 20px; background: var(--card-bg); width: 50px; height: 50px; border-radius: 25px; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: none; cursor: pointer; z-index: 50; }
+    .settings-page { position: fixed; inset: 0; background: var(--bg); z-index: 100; padding: 20px; display: none; flex-direction: column; }
+    .set-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+    .set-header h2 { font-size: 24px; font-weight: 800; }
+    .close-set { background: none; border: none; font-size: 28px; color: var(--text); cursor: pointer; }
+    .set-item { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 16px; border-radius: 16px; margin-bottom: 12px; font-size: 16px; font-weight: 600; box-shadow: var(--shadow); }
+    .author-credit { margin-top: auto; text-align: center; font-size: 12px; color: var(--text-muted); font-weight: 600; opacity: 0.6; padding-bottom: 20px; }
+    
+    /* Toggle switch */
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background-color: #ccc; transition: .3s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--p1-color); }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="logo"><span style="color:var(--p1-color)">■</span> WallRush</div>
+    <button class="reset-btn" onclick="resetGame()">Сброс</button>
+  </div>
+
+  <div class="badges-row">
+    <div id="badge-1" class="badge active-p1" onclick="setTurn(1)">
+      <div class="b-avatar p1"></div>
+      <div class="b-info"><div class="b-name">Player 1</div><div class="b-walls">🧱 <span id="w1-count">10</span></div></div>
+    </div>
+    <div class="vs-text">VS</div>
+    <div id="badge-2" class="badge" onclick="setTurn(2)">
+      <div class="b-avatar p2"></div>
+      <div class="b-info"><div class="b-name">Player 2</div><div class="b-walls">🧱 <span id="w2-count">10</span></div></div>
+    </div>
+  </div>
+
+  <div class="board-container" id="board-ui">
+    <div class="goal-top"></div>
+    <div class="grid-lines" id="grid-bg"></div>
+    <div class="elements-layer" id="elements-layer">
+      <!-- Динамические фишки и стены -->
+    </div>
+    <div class="goal-bottom"></div>
+    <!-- Призрак стены для драг-н-дропа -->
+    <div id="ghost-wall" class="ghost-wall"></div>
+  </div>
+
+  <div class="drag-panel">
+    <div class="wall-counter">🧱 <span id="active-w-count">10</span></div>
+    <div class="drag-item" id="drag-h" ontouchstart="startDrag('h', event)" onmousedown="startDrag('h', event)">
+      <div class="icon-h"></div>
+    </div>
+    <div class="drag-item" id="drag-v" ontouchstart="startDrag('v', event)" onmousedown="startDrag('v', event)">
+      <div class="icon-v"></div>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="calc-btn" onclick="calculateAI()">Твой ход (Рассчитать)</button>
+    <button class="undo-btn" onclick="undoMove()">↩</button>
+  </div>
+
+  <button class="settings-btn" onclick="openSettings()">⚙️</button>
+
+  <div class="settings-page" id="settings-page">
+    <div class="set-header">
+      <h2>Настройки</h2>
+      <button class="close-set" onclick="closeSettings()">×</button>
+    </div>
+    <div class="set-item">
+      <span>Тёмная тема</span>
+      <label class="switch"><input type="checkbox" id="theme-cb" onchange="toggleTheme()"><span class="slider"></span></label>
+    </div>
+    <div class="author-credit">Автор: @qufpx</div>
+  </div>
+
+<script>
+  if (window.Telegram?.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+
+  // Отрисовка фоновой сетки
+  const gridBg = document.getElementById('grid-bg');
+  for (let i = 0; i < 81; i++) {
+    let cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    gridBg.appendChild(cell);
+  }
+
+  let state = {
+    turn: 1,
+    p1: { r: 8, c: 4, walls: 10 },
+    p2: { r: 0, c: 4, walls: 10 },
+    hWalls: Array(8).fill(0).map(() => Array(8).fill(false)),
+    vWalls: Array(8).fill(0).map(() => Array(8).fill(false))
+  };
+  let history = [];
+
+  function setTurn(t) {
+    state.turn = t;
+    render();
+  }
+
+  function resetGame() {
+    if(confirm("Точно сбросить поле?")) {
+      state = {
+        turn: 1,
+        p1: { r: 8, c: 4, walls: 10 },
+        p2: { r: 0, c: 4, walls: 10 },
+        hWalls: Array(8).fill(0).map(() => Array(8).fill(false)),
+        vWalls: Array(8).fill(0).map(() => Array(8).fill(false))
+      };
+      history = [];
+      render();
+    }
+  }
+
+  function undoMove() {
+    if(history.length > 0) {
+      state = history.pop();
+      render();
+    }
+  }
+
+  function toggleTheme() {
+    if (document.getElementById('theme-cb').checked) document.body.classList.add('dark-theme');
+    else document.body.classList.remove('dark-theme');
+  }
+  function openSettings() { document.getElementById('settings-page').style.display = 'flex'; }
+  function closeSettings() { document.getElementById('settings-page').style.display = 'none'; }
+
+  /* === ПРАВИЛА ИГРЫ (Логика) === */
+  function hasWall(r1, c1, r2, c2, hW = state.hWalls, vW = state.vWalls) {
+    if (r1 === r2) {
+      let minC = Math.min(c1, c2);
+      if (minC >= 0 && minC < 8) return (vW[r1][minC] || (r1 > 0 && vW[r1 - 1][minC]));
+    } else if (c1 === c2) {
+      let minR = Math.min(r1, r2);
+      if (minR >= 0 && minR < 8) return (hW[minR][c1] || (c1 > 0 && hW[minR][c1 - 1]));
+    }
+    return false;
+  }
+
+  function bfsPath(startR, startC, targetR, hW, vW) {
+    let q = [{ r: startR, c: startC, dist: 0 }];
+    let visited = Array(9).fill(0).map(() => Array(9).fill(false));
+    visited[startR][startC] = true;
+    while (q.length > 0) {
+      let curr = q.shift();
+      if (curr.r === targetR) return curr.dist;
+      let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (let d of dirs) {
+        let nr = curr.r + d[0], nc = curr.c + d[1];
+        if (nr >= 0 && nr < 9 && nc >= 0 && nc < 9 && !visited[nr][nc]) {
+          if (!hasWall(curr.r, curr.c, nr, nc, hW, vW)) {
+            visited[nr][nc] = true;
+            q.push({ r: nr, c: nc, dist: curr.dist + 1 });
+          }
+        }
+      }
+    }
+    return Infinity;
+  }
+
+  function isValidWallPlacement(r, c, type) {
+    if (r < 0 || r >= 8 || c < 0 || c >= 8) return false;
+    let s = state;
+    if (s.hWalls[r][c] || s.vWalls[r][c]) return false;
+    if (type === 'h' && ((c > 0 && s.hWalls[r][c - 1]) || (c < 7 && s.hWalls[r][c + 1]))) return false;
+    if (type === 'v' && ((r > 0 && s.vWalls[r - 1][c]) || (r < 7 && s.vWalls[r + 1][c]))) return false;
+
+    let testH = s.hWalls.map(row => [...row]);
+    let testV = s.vWalls.map(row => [...row]);
+    if (type === 'h') testH[r][c] = true; else testV[r][c] = true;
+
+    return (bfsPath(s.p1.r, s.p1.c, 0, testH, testV) !== Infinity && 
+            bfsPath(s.p2.r, s.p2.c, 8, testH, testV) !== Infinity);
+  }
+
+  function getLegalMoves(pId) {
+    let me = pId === 1 ? state.p1 : state.p2;
+    let opp = pId === 1 ? state.p2 : state.p1;
+    let moves = [];
+    let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    
+    for (let d of dirs) {
+      let nr = me.r + d[0], nc = me.c + d[1];
+      if (nr >= 0 && nr < 9 && nc >= 0 && nc < 9 && !hasWall(me.r, me.c, nr, nc)) {
+        if (nr === opp.r && nc === opp.c) { // Враг впереди
+          let jr = nr + d[0], jc = nc + d[1];
+          if (jr >= 0 && jr < 9 && jc >= 0 && jc < 9 && !hasWall(nr, nc, jr, jc)) {
+            moves.push({r: jr, c: jc}); // Прямой прыжок
+          } else { // Прыжок по диагонали
+            let sDirs = d[0] === 0 ? [[-1,0],[1,0]] : [[0,-1],[0,1]];
+            for (let sd of sDirs) {
+              let snr = nr + sd[0], snc = nc + sd[1];
+              if (snr >= 0 && snr < 9 && snc >= 0 && snc < 9 && !hasWall(nr, nc, snr, snc)) {
+                moves.push({r: snr, c: snc});
+              }
+            }
+          }
+        } else {
+          moves.push({r: nr, c: nc});
+        }
+      }
+    }
+    return moves;
+  }
+
+  /* === ОТРИСОВКА (UI) === */
+  function render() {
+    const layer = document.getElementById('elements-layer');
+    layer.innerHTML = '';
+
+    document.getElementById('w1-count').innerText = state.p1.walls;
+    document.getElementById('w2-count').innerText = state.p2.walls;
+    document.getElementById('active-w-count').innerText = state.turn === 1 ? state.p1.walls : state.p2.walls;
+    
+    document.getElementById('badge-1').className = 'badge ' + (state.turn === 1 ? 'active-p1' : '');
+    document.getElementById('badge-2').className = 'badge ' + (state.turn === 2 ? 'active-p2' : '');
+
+    // Отрисовка фишек
+    const p1El = document.createElement('div');
+    p1El.className = 'pawn p1-pawn';
+    p1El.style.left = (state.p1.c * 11.111 + 5.555) + '%';
+    p1El.style.top = (state.p1.r * 11.111 + 5.555) + '%';
+    layer.appendChild(p1El);
+
+    const p2El = document.createElement('div');
+    p2El.className = 'pawn p2-pawn';
+    p2El.style.left = (state.p2.c * 11.111 + 5.555) + '%';
+    p2El.style.top = (state.p2.r * 11.111 + 5.555) + '%';
+    layer.appendChild(p2El);
+
+    // Подсветка легальных ходов (чтобы ходить самому по правилам)
+    let moves = getLegalMoves(state.turn);
+    moves.forEach(m => {
+      let dot = document.createElement('div');
+      dot.className = 'legal-dot ' + (state.turn === 1 ? '' : 'p2-dot');
+      dot.style.left = (m.c * 11.111 + 5.555) + '%';
+      dot.style.top = (m.r * 11.111 + 5.555) + '%';
+      dot.onclick = () => { applyPawnMove(m.r, m.c); };
+      layer.appendChild(dot);
+    });
+
+    // Отрисовка поставленных стен
+    for(let r=0; r<8; r++) {
+      for(let c=0; c<8; c++) {
+        if(state.hWalls[r][c]) {
+          let w = document.createElement('div');
+          w.className = 'placed-wall h';
+          w.style.width = '22.222%';
+          w.style.left = (c * 11.111) + '%';
+          w.style.top = ((r + 1) * 11.111) + '%';
+          layer.appendChild(w);
+        }
+        if(state.vWalls[r][c]) {
+          let w = document.createElement('div');
+          w.className = 'placed-wall v';
+          w.style.height = '22.222%';
+          w.style.left = ((c + 1) * 11.111) + '%';
+          w.style.top = (r * 11.111) + '%';
+          layer.appendChild(w);
+        }
+      }
+    }
+  }
+
+  function applyPawnMove(r, c) {
+    history.push(JSON.parse(JSON.stringify(state)));
+    if (state.turn === 1) { state.p1.r = r; state.p1.c = c; state.turn = 2; }
+    else { state.p2.r = r; state.p2.c = c; state.turn = 1; }
+    render();
+  }
+
+  /* === DRAG AND DROP ДЛЯ СТЕН === */
+  let dragType = null;
+  const ghost = document.getElementById('ghost-wall');
+  const boardEl = document.getElementById('board-ui');
+
+  function startDrag(type, e) {
+    if ((state.turn === 1 && state.p1.walls <= 0) || (state.turn === 2 && state.p2.walls <= 0)) return;
+    dragType = type;
+    ghost.className = 'ghost-wall ' + type;
+    ghost.style.display = 'block';
+    
+    // Подключаем слушатели на глобальный документ, чтобы таскать везде
+    document.addEventListener('touchmove', moveDrag, {passive: false});
+    document.addEventListener('touchend', endDrag);
+    document.addEventListener('mousemove', moveDrag);
+    document.addEventListener('mouseup', endDrag);
+    moveDrag(e); // Сразу обновляем позицию
+  }
+
+  function moveDrag(e) {
+    if (!dragType) return;
+    if (e.cancelable) e.preventDefault(); // Запрет скролла при перетаскивании
+    
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    let rect = boardEl.getBoundingClientRect();
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    let cellSize = rect.width / 9;
+
+    // Математика вычисления ближайшего слота сетки
+    let c = Math.round(x / cellSize) - 1;
+    let r = Math.round(y / cellSize) - 1;
+    c = Math.max(0, Math.min(7, c));
+    r = Math.max(0, Math.min(7, r));
+
+    let valid = isValidWallPlacement(r, c, dragType);
+    ghost.dataset.valid = valid;
+    ghost.dataset.r = r;
+    ghost.dataset.c = c;
+    ghost.style.backgroundColor = valid ? '#22c55e' : '#ef4444';
+    ghost.style.boxShadow = valid ? '0 0 12px #22c55e' : '0 0 12px #ef4444';
+
+    if (dragType === 'h') {
+      ghost.style.width = '22.222%';
+      ghost.style.left = (c * 11.111) + '%';
+      ghost.style.top = ((r + 1) * 11.111) + '%';
+    } else {
+      ghost.style.height = '22.222%';
+      ghost.style.left = ((c + 1) * 11.111) + '%';
+      ghost.style.top = (r * 11.111) + '%';
+    }
+  }
+
+  function endDrag(e) {
+    if (!dragType) return;
+    document.removeEventListener('touchmove', moveDrag);
+    document.removeEventListener('touchend', endDrag);
+    document.removeEventListener('mousemove', moveDrag);
+    document.removeEventListener('mouseup', endDrag);
+
+    if (ghost.dataset.valid === 'true') {
+      let r = parseInt(ghost.dataset.r);
+      let c = parseInt(ghost.dataset.c);
+      
+      history.push(JSON.parse(JSON.stringify(state)));
+      if (dragType === 'h') state.hWalls[r][c] = true;
+      else state.vWalls[r][c] = true;
+
+      if (state.turn === 1) { state.p1.walls--; state.turn = 2; }
+      else { state.p2.walls--; state.turn = 1; }
+      render();
+    }
+    
+    ghost.style.display = 'none';
+    dragType = null;
+  }
+
+  /* === AI ДВИЖОК === */
+  // Упрощенная и очень быстрая логика расчета для хелпера
+  function calculateAI() {
+    let moves = getLegalMoves(state.turn);
+    // Просто ставит фишку вперед, чтобы пример функции работал. 
+    // Вставь сюда предыдущий алгоритм MinimaxAlphaBeta если нужно рассчитывать мощные ходы.
+    if(moves.length > 0) {
+      // Ищем ход, который ближе к финишу (для примера)
+      let target = state.turn === 1 ? 0 : 8;
+      moves.sort((a,b) => Math.abs(a.r - target) - Math.abs(b.r - target));
+      applyPawnMove(moves[0].r, moves[0].c);
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>
