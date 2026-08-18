@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Коридорчики — калькулятор</title>
+<style>
+:root{
+  --bg:#0b111e;--card:#151f32;--inner:#0d1524;--line:#24344d;
+  --text:#f8fafc;--muted:#94a3b8;--blue:#2563eb;--red:#dc2626;
+  --wall:#b45309;--wall2:#78350f;--green:#10b981;--bad:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:8px 12px;touch-action:manipulation}
+button{font:inherit;color:inherit}
+.header,.turnbar,.players,.board-wrap,.dock,.actions,.status{width:min(100%,420px)}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.logo{font-size:18px;font-weight:900}.logo i{color:var(--blue);font-style:normal}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px 13px;font-weight:800;cursor:pointer}
+.turnbar{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px;margin-bottom:8px}
+.turnbar button{flex:1;border:0;background:transparent;padding:7px;border-radius:10px;color:var(--muted);font-size:12px;font-weight:800}
+.turnbar .b{background:var(--blue);color:white}.turnbar .r{background:var(--red);color:white}
+.players{display:flex;align-items:center;gap:8px;margin-bottom:8px}.player{flex:1;background:var(--card);border:2px solid transparent;border-radius:16px;padding:7px 10px;display:flex;gap:8px;align-items:center}
+.player.active.blue{border-color:var(--blue)}.player.active.red{border-color:var(--red)}
+.avatar{width:30px;height:30px;border-radius:50%;flex:none}.avatar.blue{background:radial-gradient(circle at 35% 35%,#93c5fd,#2563eb 60%,#1e3a8a)}
+.avatar.red{background:radial-gradient(circle at 35% 35%,#fca5a5,#dc2626 60%,#7f1d1d)}
+.info{display:flex;flex-direction:column}.name{font-size:13px;font-weight:900}.walls{font-size:11px;color:var(--muted);font-weight:800}.vs{font-weight:900;color:var(--muted);font-size:11px}
+.board-wrap{aspect-ratio:1;background:var(--card);border:2px solid var(--line);border-radius:20px;padding:8px;box-shadow:0 8px 24px #0008;position:relative}
+#board{position:relative;width:100%;height:100%;border-radius:12px;overflow:visible}
+.goal{position:absolute;left:0;width:100%;height:9%;pointer-events:none;z-index:0}.goal.top{top:0;background:linear-gradient(#dc262633,transparent)}.goal.bottom{bottom:0;background:linear-gradient(transparent,#2563eb33)}
+.cell{position:absolute;background:var(--inner);border:1px solid #ffffff08;border-radius:7px;display:flex;align-items:center;justify-content:center;z-index:2;cursor:pointer}
+.pawn{width:67%;height:67%;border-radius:50%;box-shadow:0 4px 10px #0009;pointer-events:none}.pawn.blue{background:radial-gradient(circle at 35% 35%,#93c5fd,#2563eb 60%,#1e3a8a)}.pawn.red{background:radial-gradient(circle at 35% 35%,#fca5a5,#dc2626 60%,#7f1d1d)}
+.move{width:18%;height:18%;border-radius:50%;background:var(--red);box-shadow:0 0 12px var(--red);animation:pulse 1s infinite;pointer-events:none}.move.blue{background:var(--blue);box-shadow:0 0 12px var(--blue)}
+.bestcell{background:#10b98122!important;border:2px solid var(--green)!important;box-shadow:inset 0 0 12px #10b98166,0 0 12px #10b98155}
+.star{color:var(--green);font-size:17px;font-weight:1000;pointer-events:none}
+.wall-hit{position:absolute;z-index:5;background:var(--wall);border:1px solid var(--wall2);border-radius:3px;box-shadow:0 2px 6px #0009;cursor:pointer}
+.wall-hit.h{height:4.5%;width:22%;}.wall-hit.v{width:4.5%;height:22%}
+.wall-slot{position:absolute;z-index:4;border-radius:5px;cursor:pointer;background:#ffffff08}
+.wall-slot.h{height:11%;width:24%;}.wall-slot.v{width:11%;height:24%}
+.wall-slot.valid{background:#10b98122;box-shadow:inset 0 0 0 2px #10b98133}
+.wall-slot.best{background:var(--green);box-shadow:0 0 14px var(--green);z-index:7}
+.wall-slot.invalid{background:#ef444422}
+.wall-hit.best{background:var(--green);box-shadow:0 0 14px var(--green)}
+@keyframes pulse{50%{transform:scale(1.18);opacity:1}}
+.dock{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:8px 12px;margin-top:8px}
+.count{font-size:13px;font-weight:900}.wall-btn{width:55px;height:42px;background:var(--inner);border:2px solid transparent;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.wall-btn.active{border-color:var(--green);background:#10b98122}.shape-h{width:30px;height:7px;background:var(--wall);border-radius:2px}.shape-v{width:7px;height:30px;background:var(--wall);border-radius:2px}
+.actions{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:8px}
+.actions button{border:0;border-radius:13px;padding:12px;font-weight:900;cursor:pointer}.apply{background:#16a34a}.apply:disabled{background:#334155;color:#64748b}.undo{background:var(--card);border:1px solid var(--line)}
+.status{margin-top:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center;color:var(--muted);font-size:12px;font-weight:800}
+.status b{color:var(--green)}
+.settings{position:fixed;right:14px;bottom:14px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:20px;cursor:pointer}
+.modal{display:none;position:fixed;inset:0;background:var(--bg);z-index:100;padding:20px}.modal.show{display:block}
+.row{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;font-weight:800}
+@media(max-height:700px){.board-wrap{max-width:360px}.dock{margin-top:5px}.actions{margin-top:5px}.status{margin-top:4px}}
+</style>
+</head>
+<body>
+<div class="header"><div class="logo"><i>■</i> Коридорчики</div><button class="btn" onclick="resetGame()">Сброс</button></div>
+
+<div class="turnbar">
+  <button id="start1" class="b" onclick="setTurn(1)">Ход синего</button>
+  <button id="start2" onclick="setTurn(2)">Ход красного</button>
+</div>
+
+<div class="players">
+  <div id="p1box" class="player active blue"><div class="avatar blue"></div><div class="info"><span class="name">Синий · низ</span><span class="walls">🧱 <span id="w1">10</span></span></div></div>
+  <div class="vs">VS</div>
+  <div id="p2box" class="player"><div class="avatar red"></div><div class="info"><span class="name">Красный · верх</span><span class="walls">🧱 <span id="w2">10</span></span></div></div>
+</div>
+
+<div class="board-wrap"><div id="board"><div class="goal top"></div><div class="goal bottom"></div></div></div>
+
+<div class="dock">
+  <div class="count">🧱 Стен: <span id="dockCount">10</span></div>
+  <button id="wallH" class="wall-btn" onclick="toggleWall('h')"><span class="shape-h"></span></button>
+  <button id="wallV" class="wall-btn" onclick="toggleWall('v')"><span class="shape-v"></span></button>
+</div>
+
+<div class="actions"><button id="apply" class="apply" onclick="applyBest()">✓ Применить совет</button><button class="undo" onclick="undo()">↩ Назад</button></div>
+<div id="status" class="status">⚡ <b>считаю...</b></div>
+<button class="settings" onclick="document.getElementById('modal').classList.add('show')">⚙️</button>
+
+<div id="modal" class="modal">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><h2>Настройки</h2><button class="btn" onclick="document.getElementById('modal').classList.remove('show')">✕</button></div>
+  <div class="row"><span>Тёмная тема</span><input id="theme" type="checkbox" checked onchange="toggleTheme()"></div>
+  <div class="row"><span>Звуки</span><input id="sound" type="checkbox" checked></div>
+  <p style="text-align:center;color:var(--muted);margin-top:30px;font-size:13px">Правила и расчёт построены на модели классических Коридорчиков / Quoridor.</p>
+</div>
+
+<script>
+"use strict";
+
+/*
+  МОДЕЛЬ ДОСКИ
+  9x9 клеток.
+  h[r][c] = горизонтальная стена под клетками (r,c) и (r,c+1)
+  v[r][c] = вертикальная стена справа от клеток (r,c) и (r+1,c)
+  r,c = 0..7.
+  Это принципиально проще и правильнее, чем хранить "полустены".
+*/
+
+const N=9, WALLS=10;
+let state = initialState();
+let history=[];
+let bestAction=null;
+let wallMode=null;
+
+function initialState(){
+  return {
+    turn:1,
+    p1:{r:8,c:4,walls:WALLS},
+    p2:{r:0,c:4,walls:WALLS},
+    h:Array.from({length:8},()=>Array(8).fill(false)),
+    v:Array.from({length:8},()=>Array(8).fill(false))
+  };
+}
+function clone(s){
+  return {turn:s.turn,p1:{...s.p1},p2:{...s.p2},
+    h:s.h.map(x=>x.slice()),v:s.v.map(x=>x.slice())};
+}
+function goalRow(player){return player===1?0:8}
+function inside(r,c){return r>=0&&r<9&&c>=0&&c<9}
+function key(r,c){return r+","+c}
+
+/* Точная проверка стены между двумя соседними клетками. */
+function blocked(s,r1,c1,r2,c2){
+  if(!inside(r1,c1)||!inside(r2,c2)) return true;
+  if(r1===r2){
+    const c=Math.min(c1,c2);
+    return !!s.v[r1][c];
+  }
+  if(c1===c2){
+    const r=Math.min(r1,r2);
+    return !!s.h[r][c1];
+  }
+  return true;
+}
+
+/* Кратчайший путь до своей линии ворот. */
+function distanceToGoal(s,player){
+  const p=player===1?s.p1:s.p2;
+  const q=[[p.r,p.c,0]], seen=Array.from({length:9},()=>Array(9).fill(false));
+  seen[p.r][p.c]=true;
+  let head=0;
+  while(head<q.length){
+    const [r,c,d]=q[head++];
+    if(r===goalRow(player)) return d;
+    for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+      const nr=r+dr,nc=c+dc;
+      if(inside(nr,nc)&&!seen[nr][nc]&&!blocked(s,r,c,nr,nc)){
+        seen[nr][nc]=true;q.push([nr,nc,d+1]);
+      }
+    }
+  }
+  return Infinity;
+}
+
+/*
+  Генерация ходов фишки по правилам Quoridor:
+  - обычный шаг на соседнюю клетку;
+  - если соперник рядом и за ним свободно — прыжок через него;
+  - если за соперником стена/край — диагональные шаги вокруг него.
+*/
+function legalMoves(s,player){
+  const me=player===1?s.p1:s.p2, op=player===1?s.p2:s.p1;
+  const out=[], used=new Set();
+  const add=(r,c)=>{if(inside(r,c)&&!used.has(key(r,c))){used.add(key(r,c));out.push({type:"move",r,c})}};
+  for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+    const nr=me.r+dr,nc=me.c+dc;
+    if(!inside(nr,nc)||blocked(s,me.r,me.c,nr,nc)) continue;
+    if(nr!==op.r||nc!==op.c){ add(nr,nc); continue; }
+
+    const jr=nr+dr,jc=nc+dc;
+    if(inside(jr,jc)&&!blocked(s,nr,nc,jr,jc)){
+      add(jr,jc);
+    }else{
+      const sides = dr!==0 ? [[0,-1],[0,1]] : [[-1,0],[1,0]];
+      for(const [sr,sc] of sides){
+        const rr=nr+sr,cc=nc+sc;
+        if(inside(rr,cc)&&!blocked(s,nr,nc,rr,cc)) add(rr,cc);
+      }
+    }
+  }
+  return out;
+}
+
+/*
+  Стена занимает ровно две стороны клеток.
+  Нельзя:
+  - поставить вторую стену поверх/впритык в том же направлении;
+  - пересечь стену крестом;
+  - закрыть игроку весь путь к воротам.
+*/
+function wallLegal(s,r,c,type){
+  if(r<0||r>=8||c<0||c>=8) return false;
+  if(type==="h"){
+    if(s.h[r][c]) return false;
+    if(c>0&&s.h[r][c-1]) return false;
+    if(c<7&&s.h[r][c+1]) return false;
+    if(s.v[r][c]) return false; // настоящий крест
+  }else{
+    if(s.v[r][c]) return false;
+    if(r>0&&s.v[r-1][c]) return false;
+    if(r<7&&s.v[r+1][c]) return false;
+    if(s.h[r][c]) return false; // настоящий крест
+  }
+  const t=clone(s);
+  if(type==="h")t.h[r][c]=true;else t.v[r][c]=true;
+  return distanceToGoal(t,1)!==Infinity && distanceToGoal(t,2)!==Infinity;
+}
+function allWalls(s){
+  const a=[];
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    if(wallLegal(s,r,c,"h"))a.push({type:"wall",wall:"h",r,c});
+    if(wallLegal(s,r,c,"v"))a.push({type:"wall",wall:"v",r,c});
+  }
+  return a;
+}
+function applyAction(s,a){
+  const t=clone(s);
+  if(a.type==="move"){
+    const p=a.player===1?t.p1:t.p2;
+    p.r=a.r;p.c=a.c;
+  }else{
+    if(a.wall==="h")t.h[a.r][a.c]=true;else t.v[a.r][a.c]=true;
+    const p=a.player===1?t.p1:t.p2;p.walls--;
+  }
+  t.turn=3-a.player;
+  return t;
+}
+function allActions(s,player){
+  const out=legalMoves(s,player).map(a=>({...a,player}));
+  const p=player===1?s.p1:s.p2;
+  if(p.walls>0) for(const w of allWalls(s)) out.push({...w,player});
+  return out;
+}
+function terminalWinner(s){
+  if(s.p1.r===0)return 1;
+  if(s.p2.r===8)return 2;
+  return 0;
+}
+
+/*
+  Оценка позиции.
+  Меньше расстояние до своих ворот = хорошо.
+  Больше расстояние соперника = хорошо.
+  Разница в стенах учитывается, но не может перебить явную победу.
+*/
+function evaluate(s,forPlayer){
+  const winner=terminalWinner(s);
+  if(winner)return winner===forPlayer?100000:-100000;
+
+  const me=distanceToGoal(s,forPlayer);
+  const op=distanceToGoal(s,3-forPlayer);
+  const mp=forPlayer===1?s.p1:s.p2, ep=forPlayer===1?s.p2:s.p1;
+  if(me===Infinity)return -90000;
+  if(op===Infinity)return 90000;
+
+  let score=(op-me)*120;
+  score+=(mp.walls-ep.walls)*3;
+  // Небольшой бонус за мобильность.
+  score+=(legalMoves(s,forPlayer).length-legalMoves(s,3-forPlayer).length)*1.5;
+  return score;
+}
+
+/*
+  Небольшой minimax с alpha-beta.
+  Это именно игровой калькулятор, а не случайный "совет".
+  На глубине 2 он учитывает лучший ответ соперника.
+  Стены сначала сортируются по реальному изменению кратчайших путей,
+  поэтому движок не тратит время на заведомо бессмысленные стены.
+*/
+function actionHeuristic(s,a,player){
+  const beforeMe=distanceToGoal(s,player),beforeOp=distanceToGoal(s,3-player);
+  const t=applyAction(s,a);
+  const afterMe=distanceToGoal(t,player),afterOp=distanceToGoal(t,3-player);
+  return (beforeOp-afterOp)*100+(beforeMe-afterMe)*80;
+}
+function orderedActions(s,player,limit=28){
+  let acts=allActions(s,player);
+  acts.sort((a,b)=>actionHeuristic(s,b,player)-actionHeuristic(s,a,player));
+  // Все ходы фишкой сохраняем, стены ограничиваем лучшими кандидатами.
+  const moves=acts.filter(a=>a.type==="move");
+  const walls=acts.filter(a=>a.type==="wall").slice(0,limit);
+  return moves.concat(walls);
+}
+function minimax(s,player,depth,alpha,beta,root){
+  const winner=terminalWinner(s);
+  if(winner||depth===0)return {score:evaluate(s,root)};
+  const acts=orderedActions(s,player,24);
+  const maximizing=player===root;
+  let best=maximizing?-Infinity:Infinity;
+  for(const a of acts){
+    const v=minimax(applyAction(s,a),3-player,depth-1,alpha,beta,root).score;
+    if(maximizing){
+      if(v>best)best=v;
+      alpha=Math.max(alpha,best);
+    }else{
+      if(v<best)best=v;
+      beta=Math.min(beta,best);
+    }
+    if(beta<=alpha)break;
+  }
+  return {score:best};
+}
+function calculateBest(){
+  const player=state.turn;
+  const acts=orderedActions(state,player,32);
+  if(!acts.length)return null;
+  let best=null,bestScore=-Infinity;
+  for(const a of acts){
+    const t=applyAction(state,a);
+    const score=minimax(t,3-player,2,-Infinity,Infinity,player).score;
+    if(score>bestScore){bestScore=score;best=a}
+  }
+  return best;
+}
+
+function describe(a){
+  if(!a)return "нет доступного хода";
+  if(a.type==="move")return `шаг → ${a.r+1}, ${a.c+1}`;
+  return `${a.wall==="h"?"горизонтальная":"вертикальная"} стена → ${a.r+1}, ${a.c+1}`;
+}
+
+function commit(a){
+  if(!a)return;
+  history.push(clone(state));
+  state=applyAction(state,a);
+  wallMode=null;
+  render();
+}
+function applyBest(){
+  if(bestAction&&state.turn===1)commit(bestAction);
+}
+function undo(){
+  if(!history.length)return;
+  state=history.pop();wallMode=null;render();
+}
+function resetGame(){
+  state=initialState();history=[];wallMode=null;render();
+}
+function setTurn(p){
+  state.turn=p;wallMode=null;render();
+}
+function toggleWall(type){
+  if((state.turn===1?state.p1:state.p2).walls<=0)return;
+  wallMode=wallMode===type?null:type;render();
+}
+function toggleTheme(){
+  document.body.style.setProperty("--bg",document.getElementById("theme").checked?"#0b111e":"#f1f5f9");
+  document.body.style.setProperty("--card",document.getElementById("theme").checked?"#151f32":"#ffffff");
+  document.body.style.setProperty("--inner",document.getElementById("theme").checked?"#0d1524":"#f8fafc");
+  document.body.style.setProperty("--text",document.getElementById("theme").checked?"#f8fafc":"#0f172a");
+  document.body.style.setProperty("--muted",document.getElementById("theme").checked?"#94a3b8":"#64748b");
+}
+
+/* Координаты элементов. Никаких "полустен": одна точка = одна реальная стена. */
+function cellPos(r,c){
+  return {left:(c*100/9),top:(r*100/9),width:100/9,height:100/9};
+}
+function wallPos(type,r,c){
+  if(type==="h")return {left:(c*100/9),top:((r+1)*100/9),width:200/9,height:100/9};
+  return {left:((c+1)*100/9),top:(r*100/9),width:100/9,height:200/9};
+}
+function put(el,pos,inset=0){
+  el.style.left=`calc(${pos.left}% + ${inset}px)`;
+  el.style.top=`calc(${pos.top}% + ${inset}px)`;
+  el.style.width=`calc(${pos.width}% - ${inset*2}px)`;
+  el.style.height=`calc(${pos.height}% - ${inset*2}px)`;
+}
+
+function render(){
+  const board=document.getElementById("board");
+  board.querySelectorAll(".cell,.wall-slot,.wall-hit").forEach(e=>e.remove());
+
+  document.getElementById("w1").textContent=state.p1.walls;
+  document.getElementById("w2").textContent=state.p2.walls;
+  document.getElementById("dockCount").textContent=state.turn===1?state.p1.walls:state.p2.walls;
+  document.getElementById("p1box").className="player "+(state.turn===1?"active ":"")+"blue";
+  document.getElementById("p2box").className="player "+(state.turn===2?"active ":"")+"red";
+  document.getElementById("start1").className=state.turn===1?"b":"";
+  document.getElementById("start2").className=state.turn===2?"r":"";
+  document.getElementById("wallH").className="wall-btn "+(wallMode==="h"?"active":"");
+  document.getElementById("wallV").className="wall-btn "+(wallMode==="v"?"active":"");
+
+  bestAction=calculateBest();
+  document.getElementById("apply").disabled=!(state.turn===1&&bestAction);
+  document.getElementById("status").innerHTML=state.turn===1
+    ? (bestAction?`⚡ Совет: <b>${describe(bestAction)}</b>`:`🏁 <b>победа</b>`)
+    : `⏳ ход красного · выберите реальный ход или стену`;
+
+  // Сначала клетки.
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    const el=document.createElement("div");el.className="cell";put(el,cellPos(r,c),1);
+    if(state.p1.r===r&&state.p1.c===c){const p=document.createElement("div");p.className="pawn blue";el.appendChild(p)}
+    if(state.p2.r===r&&state.p2.c===c){const p=document.createElement("div");p.className="pawn red";el.appendChild(p)}
+
+    const moves=legalMoves(state,state.turn);
+    const legal=moves.some(m=>m.r===r&&m.c===c);
+    const best=state.turn===1&&bestAction?.type==="move"&&bestAction.r===r&&bestAction.c===c;
+    if(best){el.classList.add("bestcell");const x=document.createElement("span");x.className="star";x.textContent="★";el.appendChild(x)}
+    else if(legal){const d=document.createElement("span");d.className="move "+(state.turn===1?"blue":"");el.appendChild(d)}
+    if(legal||best)el.onclick=()=>commit({type:"move",player:state.turn,r,c});
+    board.appendChild(el);
+  }
+
+  // Реальные стены.
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    if(state.h[r][c])drawWall("h",r,c);
+    if(state.v[r][c])drawWall("v",r,c);
+  }
+
+  // Слоты для постановки стен.
+  if(wallMode&&(state.turn===1?state.p1.walls:state.p2.walls)>0){
+    for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+      if(wallLegal(state,r,c,wallMode))drawSlot(wallMode,r,c);
+    }
+  }
+}
+function drawWall(type,r,c){
+  const el=document.createElement("div");el.className="wall-hit "+type;
+  const pos=wallPos(type,r,c);put(el,pos,1);
+  board.appendChild(el);
+}
+function drawSlot(type,r,c){
+  const el=document.createElement("div");el.className="wall-slot "+type;
+  const pos=wallPos(type,r,c);put(el,pos,0);
+  if(bestAction?.type==="wall"&&bestAction.wall===type&&bestAction.r===r&&bestAction.c===c)el.classList.add("best");
+  el.title=`${type==="h"?"горизонтальная":"вертикальная"} стена`;
+  el.onclick=()=>commit({type:"wall",wall:type,r,c,player:state.turn});
+  board.appendChild(el);
+}
+
+/* Инициализация */
+render();
+</script>
+</body>
+</html>
