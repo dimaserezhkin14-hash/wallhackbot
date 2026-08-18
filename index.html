@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WallRush Grandmaster Helper</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    /* === ПЕРЕМЕННЫЕ (ТЁМНАЯ ТЕМА ПО УМОЛЧАНИЮ) === */
+    :root {
+      --bg: #0b0f19;
+      --grid-line: #1e293b;
+      --card-bg: #151d30;
+      --card-inner: #0f172a;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --p1-color: #3b82f6;
+      --p1-grad: radial-gradient(circle at 30% 30%, #93c5fd, #2563eb 60%, #1e3a8a);
+      --p1-glow: rgba(59, 130, 246, 0.4);
+      
+      --p2-color: #ef4444;
+      --p2-grad: radial-gradient(circle at 30% 30%, #fca5a5, #dc2626 60%, #7f1d1d);
+      --p2-glow: rgba(239, 68, 68, 0.4);
+      
+      --wall-placed: #b45309;
+      --wall-stroke: #78350f;
+      --wall-hint: #22c55e;
+      --wall-error: #ef4444;
+      
+      --shadow-base: 0 4px 15px rgba(0,0,0,0.5);
+      --board-border: #334155;
+    }
+
+    /* СВЕТЛЯА ТЕМА (Включается через настройки) */
+    body.light-theme {
+      --bg: #f1f5f9;
+      --grid-line: #cbd5e1;
+      --card-bg: #ffffff;
+      --card-inner: #f8fafc;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --shadow-base: 0 4px 15px rgba(0,0,0,0.1);
+      --board-border: #94a3b8;
+    }
+
+    /* === БАЗОВЫЕ СТИЛИ === */
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      user-select: none; 
+      -webkit-tap-highlight-color: transparent; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+    }
+    
+    body {
+      background: var(--bg);
+      background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 20px 20px;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 12px;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* === ВЕРХНЯЯ ПАНЕЛЬ === */
+    .top-bar { 
+      width: 100%; 
+      max-width: 420px; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: 16px; 
+    }
+    .logo { 
+      font-size: 22px; 
+      font-weight: 800; 
+      display: flex; 
+      align-items: center; 
+      gap: 8px; 
+      letter-spacing: -0.5px;
+    }
+    .reset-btn { 
+      background: var(--card-bg); 
+      border: 1px solid var(--grid-line); 
+      padding: 8px 16px; 
+      border-radius: 12px; 
+      font-weight: 700; 
+      color: var(--text); 
+      box-shadow: var(--shadow-base); 
+      cursor: pointer; 
+      font-size: 14px;
+    }
+
+    /* === ПЛАШКИ ИГРОКОВ === */
+    .badges-row { 
+      width: 100%; 
+      max-width: 420px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+      gap: 12px; 
+      margin-bottom: 24px; 
+    }
+    .badge {
+      flex: 1; 
+      background: var(--card-bg); 
+      border-radius: 24px; 
+      padding: 8px 12px; 
+      display: flex; 
+      align-items: center; 
+      gap: 10px;
+      box-shadow: var(--shadow-base); 
+      border: 2px solid transparent; 
+      transition: 0.2s; 
+      cursor: pointer;
+    }
+    .badge.active-p1 { 
+      border-color: var(--p1-color); 
+      box-shadow: 0 0 20px var(--p1-glow); 
+      background: rgba(59, 130, 246, 0.08); 
+    }
+    .badge.active-p2 { 
+      border-color: var(--p2-color); 
+      box-shadow: 0 0 20px var(--p2-glow); 
+      background: rgba(239, 68, 68, 0.08); 
+    }
+    .b-avatar { 
+      width: 38px; 
+      height: 38px; 
+      border-radius: 50%; 
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4); 
+    }
+    .b-avatar.p1 { background: var(--p1-grad); }
+    .b-avatar.p2 { background: var(--p2-grad); }
+    .b-info { display: flex; flex-direction: column; }
+    .b-name { font-size: 14px; font-weight: 800; }
+    .b-walls { font-size: 13px; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px; }
+    .vs-text { font-weight: 900; color: var(--text-muted); font-size: 15px; }
+
+    /* === ИГРОВОЕ ПОЛЕ === */
+    .board-container {
+      width: 100%; 
+      max-width: 420px; 
+      aspect-ratio: 1; 
+      background: var(--card-bg); 
+      border-radius: 20px;
+      position: relative; 
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
+      border: 3px solid var(--board-border);
+      overflow: hidden; 
+      touch-action: none;
+    }
+    .light-theme .board-container { box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+    
+    /* Базы */
+    .goal-top { position: absolute; top: 0; left: 0; right: 0; height: 11.11%; background: linear-gradient(to bottom, rgba(239,68,68,0.25), transparent); z-index: 1; pointer-events: none; }
+    .goal-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 11.11%; background: linear-gradient(to top, rgba(59,130,246,0.25), transparent); z-index: 1; pointer-events: none; }
+
+    /* Сетка */
+    .grid-lines { 
+      position: absolute; 
+      inset: 0; 
+      display: grid; 
+      grid-template-columns: repeat(9, 1fr); 
+      grid-template-rows: repeat(9, 1fr); 
+      pointer-events: none; 
+      z-index: 2; 
+    }
+    .grid-cell { border-right: 1px solid var(--grid-line); border-bottom: 1px solid var(--grid-line); }
+    .grid-cell:nth-child(9n) { border-right: none; }
+    .grid-cell:nth-last-child(-n+9) { border-bottom: none; }
+
+    /* Элементы (Фишки, стены, точки) */
+    .elements-layer { position: absolute; inset: 0; z-index: 3; }
+    
+    .pawn {
+      position: absolute; 
+      width: 8.5%; 
+      height: 8.5%; 
+      border-radius: 50%;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.6); 
+      transform: translate(-50%, -50%); 
+      transition: top 0.2s, left 0.2s;
+    }
+    .p1-pawn { background: var(--p1-grad); z-index: 10; }
+    .p2-pawn { background: var(--p2-grad); z-index: 10; }
+    
+    /* Точки хода */
+    .legal-dot {
+      position: absolute; 
+      width: 20%; 
+      height: 20%; 
+      border-radius: 50%;
+      transform: translate(-50%, -50%); 
+      cursor: pointer; 
+      z-index: 5;
+    }
+    .legal-dot::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--p1-color);
+      box-shadow: 0 0 10px var(--p1-color);
+      opacity: 0.6;
+    }
+    .legal-dot.p2-dot::after {
+      background: var(--p2-color);
+      box-shadow: 0 0 10px var(--p2-color);
+    }
+    .legal-dot:active::after { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+
+    /* Подсказки движка (Лучший ход) */
+    .hint-glow {
+      position: absolute;
+      width: 11.11%;
+      height: 11.11%;
+      background: rgba(34, 197, 94, 0.3);
+      border: 2px solid var(--wall-hint);
+      box-shadow: 0 0 15px var(--wall-hint), inset 0 0 10px var(--wall-hint);
+      border-radius: 8px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 4;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+    
+    .hint-wall-glow {
+      position: absolute;
+      background: rgba(34, 197, 94, 0.6);
+      box-shadow: 0 0 15px var(--wall-hint);
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 4;
+      animation: pulse 1.5s infinite;
+    }
+    .hint-wall-glow.h { height: 10px; width: 22.22%; transform: translateY(-50%); }
+    .hint-wall-glow.v { width: 10px; height: 22.22%; transform: translateX(-50%); }
+
+    /* Поставленные стены */
+    .placed-wall { 
+      position: absolute; 
+      background: var(--wall-placed);
+      border: 1px solid var(--wall-stroke);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+      border-radius: 4px; 
+    }
+    .placed-wall.h { height: 10px; width: 22.22%; transform: translateY(-50%); z-index: 6; }
+    .placed-wall.v { width: 10px; height: 22.22%; transform: translateX(-50%); z-index: 6; }
+
+    /* Призрак стены при перетаскивании */
+    .ghost-wall { 
+      position: absolute; 
+      border-radius: 4px; 
+      display: none; 
+      z-index: 100; 
+      pointer-events: none; 
+      transition: background 0.1s;
+    }
+    .ghost-wall.h { height: 10px; width: 22.22%; transform: translateY(-50%); }
+    .ghost-wall.v { width: 10px; height: 22.22%; transform: translateX(-50%); }
+
+    /* === ПАНЕЛЬ СО СТЕНАМИ (DRAG & DROP) === */
+    .drag-panel {
+      width: 100%; 
+      max-width: 360px; 
+      background: var(--card-bg); 
+      border-radius: 24px;
+      padding: 16px 24px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      margin-top: 24px; 
+      box-shadow: var(--shadow-base);
+    }
+    .wall-counter { font-weight: 800; font-size: 18px; color: var(--text); display: flex; align-items: center; gap: 8px;}
+    .drag-item {
+      background: var(--card-inner); 
+      padding: 14px 28px; 
+      border-radius: 16px; 
+      cursor: grab;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      touch-action: none; /* Важно для Pointer Events */
+    }
+    .drag-item:active { cursor: grabbing; background: var(--grid-line); }
+    .icon-h { width: 36px; height: 10px; background: var(--wall-placed); border-radius: 2px; border: 1px solid var(--wall-stroke); }
+    .icon-v { width: 10px; height: 36px; background: var(--wall-placed); border-radius: 2px; border: 1px solid var(--wall-stroke); }
+
+        /* === КНОПКИ ДЕЙСТВИЙ И НАСТРОЙКИ === */
+    .bottom-actions {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .undo-btn { 
+      background: var(--card-bg); 
+      border: 1px solid var(--grid-line);
+      color: var(--text);
+      padding: 14px 32px; 
+      border-radius: 16px; 
+      font-size: 16px; 
+      font-weight: 700;
+      cursor: pointer; 
+      box-shadow: var(--shadow-base); 
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-btn { 
+      position: fixed; 
+      bottom: 24px; 
+      right: 24px; 
+      background: var(--card-bg); 
+      width: 56px; 
+      height: 56px; 
+      border-radius: 28px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 26px; 
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4); 
+      border: 2px solid var(--grid-line); 
+      cursor: pointer; 
+      z-index: 50; 
+    }
+
+    /* === СТРАНИЦА НАСТРОЕК === */
+    .settings-page { 
+      position: fixed; 
+      inset: 0; 
+      background: var(--bg); 
+      z-index: 100; 
+      padding: 24px; 
+      display: none; 
+      flex-direction: column; 
+    }
+    .set-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; margin-top: 10px;}
+    .set-header h2 { font-size: 28px; font-weight: 800; }
+    .close-set { background: var(--card-bg); border: 1px solid var(--grid-line); width: 44px; height: 44px; border-radius: 22px; font-size: 24px; font-weight: bold; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;}
+    
+    .set-item { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      background: var(--card-bg); 
+      padding: 18px 20px; 
+      border-radius: 20px; 
+      margin-bottom: 16px; 
+      font-size: 17px; 
+      font-weight: 700; 
+      box-shadow: var(--shadow-base); 
+    }
+    
+    .author-credit { 
+      margin-top: auto; 
+      text-align: center; 
+      font-size: 14px; 
+      color: var(--text-muted); 
+      font-weight: 700; 
+      padding-bottom: 30px; 
+    }
+
+    /* Toggle switch */
+    .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background-color: var(--grid-line); transition: .3s; border-radius: 28px; }
+    .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);}
+    input:checked + .slider { background-color: var(--p1-color); }
+    input:checked + .slider:before { transform: translateX(22px); }
+
+  </style>
+</head>
+<body>
+
+  <!-- Верхняя панель -->
+  <div class="top-bar">
+    <div class="logo"><span style="color:var(--p1-color)">■</span> WallRush Engine</div>
+    <button class="reset-btn" onclick="resetGame()">Сброс игры</button>
+  </div>
+
+  <!-- Плашки игроков -->
+  <div class="badges-row">
+    <div id="badge-1" class="badge active-p1" onclick="setTurn(1)">
+      <div class="b-avatar p1"></div>
+      <div class="b-info">
+        <div class="b-name">Вы (Низ)</div>
+        <div class="b-walls">🧱 <span id="w1-count">10</span></div>
+      </div>
+    </div>
+    <div class="vs-text">VS</div>
+    <div id="badge-2" class="badge" onclick="setTurn(2)">
+      <div class="b-avatar p2"></div>
+      <div class="b-info">
+        <div class="b-name">Враг (Верх)</div>
+        <div class="b-walls">🧱 <span id="w2-count">10</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Игровое поле -->
+  <div class="board-container" id="board-ui">
+    <div class="goal-top"></div>
+    <div class="grid-lines" id="grid-bg"></div>
+    <div class="elements-layer" id="elements-layer">
+      <!-- Здесь рендерятся фишки, стены, точки и подсказки -->
+    </div>
+    <div class="goal-bottom"></div>
+  </div>
+
+  <!-- Призрак стены (Вне board-container для глобального позиционирования, но визуально внутри) -->
+  <div id="ghost-wall" class="ghost-wall"></div>
+
+  <!-- Панель со стенами (Drag & Drop) -->
+  <div class="drag-panel">
+    <div class="wall-counter">🧱 <span id="active-w-count">10</span></div>
+    <div class="drag-item" id="drag-h" onpointerdown="startDrag('h', event)">
+      <div class="icon-h"></div>
+    </div>
+    <div class="drag-item" id="drag-v" onpointerdown="startDrag('v', event)">
+      <div class="icon-v"></div>
+    </div>
+  </div>
+
+  <!-- Кнопка Отмены -->
+  <div class="bottom-actions">
+    <button class="undo-btn" onclick="undoMove()">↩ Отменить шаг</button>
+  </div>
+
+  <!-- Кнопка Настроек -->
+  <button class="settings-btn" onclick="openSettings()">⚙️</button>
+
+  <!-- Страница Настроек -->
+  <div class="settings-page" id="settings-page">
+    <div class="set-header">
+      <h2>Настройки</h2>
+      <button class="close-set" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="set-item">
+      <span>Тёмная тема</span>
+      <label class="switch">
+        <input type="checkbox" id="theme-cb" checked onchange="toggleTheme()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="set-item">
+      <span>Звуковые эффекты</span>
+      <label class="switch">
+        <input type="checkbox" id="sound-cb" checked onchange="toggleSound()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="author-credit">Создатель движка: @qufpx</div>
+  </div>
+
+<script>
+  if (window.Telegram?.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+
+  // === ЗВУКИ (Web Audio API) ===
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let soundEnabled = true;
+
+  function playSound(type) {
+    if (!soundEnabled) return;
+    try {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      if (type === 'move') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'wall') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      } else if (type === 'hint') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+      }
+    } catch(e) {}
+  }
+
+  // === ИНИЦИАЛИЗАЦИЯ И НАСТРОЙКИ ===
+  const gridBg = document.getElementById('grid-bg');
+  for (let i = 0; i < 81; i++) {
+    let cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    gridBg.appendChild(cell);
+  }
+
+  function toggleTheme() {
+    if (document.getElementById('theme-cb').checked) document.body.classList.remove('light-theme');
+    else document.body.classList.add('light-theme');
+  }
+  function toggleSound() { soundEnabled = document.getElementById('sound-cb').checked; }
+  function openSettings() { document.getElementById('settings-page').style.display = 'flex'; }
+  function closeSettings() { document.getElementById('settings-page').style.display = 'none'; }
+
+    // === СОСТОЯНИЕ ИГРЫ ===
+  let state = {
+    turn: 1, // 1 = Синий (Вы), 2 = Красный (Враг)
+    p1: { r: 8, c: 4, walls: 10 },
+    p2: { r: 0, c: 4, walls: 10 },
+    hWalls: Array(8).fill(0).map(() => Array(8).fill(false)),
+    vWalls: Array(8).fill(0).map(() => Array(8).fill(false))
+  };
+  let history = [];
+  let bestHint = null; // Хранит рассчитанный лучший ход
+
+  function setTurn(t) {
+    if (state.turn !== t) {
+      state.turn = t;
+      bestHint = null;
+      updateGameState();
+    }
+  }
+
+  function resetGame() {
+    if(confirm("Сбросить расстановку на поле?")) {
+      state = {
+        turn: 1,
+        p1: { r: 8, c: 4, walls: 10 },
+        p2: { r: 0, c: 4, walls: 10 },
+        hWalls: Array(8).fill(0).map(() => Array(8).fill(false)),
+        vWalls: Array(8).fill(0).map(() => Array(8).fill(false))
+      };
+      history = [];
+      bestHint = null;
+      updateGameState();
+    }
+  }
+
+  function undoMove() {
+    if(history.length > 0) {
+      state = history.pop();
+      bestHint = null;
+      playSound('move');
+      updateGameState();
+    }
+  }
+
+  // === ПРАВИЛА И ПОИСК ПУТЕЙ (ЛОГИКА) ===
+  function hasWall(r1, c1, r2, c2, hW = state.hWalls, vW = state.vWalls) {
+    if (r1 === r2) {
+      let minC = Math.min(c1, c2);
+      if (minC >= 0 && minC < 8) return (vW[r1][minC] || (r1 > 0 && vW[r1 - 1][minC]));
+    } else if (c1 === c2) {
+      let minR = Math.min(r1, r2);
+      if (minR >= 0 && minR < 8) return (hW[minR][c1] || (c1 > 0 && hW[minR][c1 - 1]));
+    }
+    return false;
+  }
+
+  function bfsDistance(startR, startC, targetR, hW, vW) {
+    let q = [{ r: startR, c: startC, dist: 0 }];
+    let visited = Array(9).fill(0).map(() => Array(9).fill(false));
+    visited[startR][startC] = true;
+    
+    while (q.length > 0) {
+      let curr = q.shift();
+      if (curr.r === targetR) return curr.dist;
+      let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (let d of dirs) {
+        let nr = curr.r + d[0], nc = curr.c + d[1];
+        if (nr >= 0 && nr < 9 && nc >= 0 && nc < 9 && !visited[nr][nc]) {
+          if (!hasWall(curr.r, curr.c, nr, nc, hW, vW)) {
+            visited[nr][nc] = true;
+            q.push({ r: nr, c: nc, dist: curr.dist + 1 });
+          }
+        }
+      }
+    }
+    return Infinity;
+  }
+
+  function isValidWallPlacement(r, c, type) {
+    if (r < 0 || r >= 8 || c < 0 || c >= 8) return false;
+    if (state.hWalls[r][c] || state.vWalls[r][c]) return false;
+    if (type === 'h' && ((c > 0 && state.hWalls[r][c - 1]) || (c < 7 && state.hWalls[r][c + 1]))) return false;
+    if (type === 'v' && ((r > 0 && state.vWalls[r - 1][c]) || (r < 7 && state.vWalls[r + 1][c]))) return false;
+
+    // Проверка на закрытие пути
+    let testH = state.hWalls.map(row => [...row]);
+    let testV = state.vWalls.map(row => [...row]);
+    if (type === 'h') testH[r][c] = true; else testV[r][c] = true;
+
+    if (bfsDistance(state.p1.r, state.p1.c, 0, testH, testV) === Infinity) return false;
+    if (bfsDistance(state.p2.r, state.p2.c, 8, testH, testV) === Infinity) return false;
+    
+    return true;
+  }
+
+  function getLegalPawnMoves(pId) {
+    let me = pId === 1 ? state.p1 : state.p2;
+    let opp = pId === 1 ? state.p2 : state.p1;
+    let moves = [];
+    let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    
+    for (let d of dirs) {
+      let nr = me.r + d[0], nc = me.c + d[1];
+      if (nr >= 0 && nr < 9 && nc >= 0 && nc < 9 && !hasWall(me.r, me.c, nr, nc)) {
+        if (nr === opp.r && nc === opp.c) { 
+          // Прыжок через врага
+          let jr = nr + d[0], jc = nc + d[1];
+          if (jr >= 0 && jr < 9 && jc >= 0 && jc < 9 && !hasWall(nr, nc, jr, jc)) {
+            moves.push({r: jr, c: jc});
+          } else { 
+            // Диагональный прыжок, если сзади стена
+            let sDirs = d[0] === 0 ? [[-1,0],[1,0]] : [[0,-1],[0,1]];
+            for (let sd of sDirs) {
+              let snr = nr + sd[0], snc = nc + sd[1];
+              if (snr >= 0 && snr < 9 && snc >= 0 && snc < 9 && !hasWall(nr, nc, snr, snc)) {
+                moves.push({r: snr, c: snc});
+              }
+            }
+          }
+        } else {
+          moves.push({r: nr, c: nc});
+        }
+      }
+    }
+    return moves;
+  }
+
+  // === ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ (АВТО-ПОДСКАЗКИ) ===
+  function evaluatePosition(s) {
+    let d1 = bfsDistance(s.p1.r, s.p1.c, 0, s.hWalls, s.vWalls);
+    let d2 = bfsDistance(s.p2.r, s.p2.c, 8, s.hWalls, s.vWalls);
+    
+    if (d1 === 0) return 10000;
+    if (d2 === 0) return -10000;
+    
+    // Чем больше разница путей, тем лучше
+    let score = (d2 - d1) * 20;
+    // Оцениваем количество стен
+    score += (s.p1.walls - s.p2.walls) * 5;
+    return score;
+  }
+
+  function calculateBestEngineMove() {
+    // Эта функция находит лучший ход для Player 1 (Вы)
+    if (state.p1.r === 0 || state.p2.r === 8) return null; // Игра окончена
+
+    let bestScore = -Infinity;
+    let bestMove = null;
+    
+    // Проверяем шаги
+    let pawnMoves = getLegalPawnMoves(1);
+    for (let m of pawnMoves) {
+      let nextS = JSON.parse(JSON.stringify(state));
+      nextS.p1.r = m.r; nextS.p1.c = m.c;
+      let score = evaluatePosition(nextS);
+      if (score > bestScore) { bestScore = score; bestMove = { type: 'move', r: m.r, c: m.c }; }
+    }
+
+    // Проверяем стены, если они есть
+    if (state.p1.walls > 0) {
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (isValidWallPlacement(r, c, 'h')) {
+            let nextS = JSON.parse(JSON.stringify(state));
+            nextS.hWalls[r][c] = true; nextS.p1.walls--;
+            let score = evaluatePosition(nextS);
+            // Если стена дает существенное преимущество над шагом
+            if (score > bestScore + 10) { bestScore = score; bestMove = { type: 'h', r: r, c: c }; }
+          }
+          if (isValidWallPlacement(r, c, 'v')) {
+            let nextS = JSON.parse(JSON.stringify(state));
+            nextS.vWalls[r][c] = true; nextS.p1.walls--;
+            let score = evaluatePosition(nextS);
+            if (score > bestScore + 10) { bestScore = score; bestMove = { type: 'v', r: r, c: c }; }
+          }
+        }
+      }
+    }
+    
+    return bestMove;
+  }
+
+  function updateGameState() {
+    render();
+    
+    // Если ход Синего (Ваш), рассчитываем и показываем подсказку
+    if (state.turn === 1 && state.p1.r !== 0 && state.p2.r !== 8) {
+      setTimeout(() => {
+        bestHint = calculateBestEngineMove();
+        if (bestHint) {
+          playSound('hint');
+          render(); // Перерисовываем, чтобы показать подсказку
+        }
+      }, 50);
+    }
+  }
+
+    // === ПРИМЕНЕНИЕ ХОДОВ ===
+  function executePawnMove(r, c) {
+    history.push(JSON.parse(JSON.stringify(state)));
+    if (state.turn === 1) { state.p1.r = r; state.p1.c = c; state.turn = 2; }
+    else { state.p2.r = r; state.p2.c = c; state.turn = 1; }
+    playSound('move');
+    bestHint = null;
+    updateGameState();
+  }
+
+  function executeWallPlacement(r, c, type) {
+    history.push(JSON.parse(JSON.stringify(state)));
+    if (type === 'h') state.hWalls[r][c] = true;
+    else state.vWalls[r][c] = true;
+
+    if (state.turn === 1) { state.p1.walls--; state.turn = 2; }
+    else { state.p2.walls--; state.turn = 1; }
+    
+    playSound('wall');
+    bestHint = null;
+    updateGameState();
+  }
+
+
+  // === ОТРИСОВКА (UI) ===
+  function render() {
+    const layer = document.getElementById('elements-layer');
+    layer.innerHTML = '';
+
+    // Обновление интерфейса и плашек
+    document.getElementById('w1-count').innerText = state.p1.walls;
+    document.getElementById('w2-count').innerText = state.p2.walls;
+    document.getElementById('active-w-count').innerText = state.turn === 1 ? state.p1.walls : state.p2.walls;
+    
+    document.getElementById('badge-1').className = 'badge ' + (state.turn === 1 ? 'active-p1' : '');
+    document.getElementById('badge-2').className = 'badge ' + (state.turn === 2 ? 'active-p2' : '');
+
+    // 1. Отрисовка фишек
+    const p1El = document.createElement('div');
+    p1El.className = 'pawn p1-pawn';
+    p1El.style.left = (state.p1.c * 11.111 + 5.555) + '%';
+    p1El.style.top = (state.p1.r * 11.111 + 5.555) + '%';
+    layer.appendChild(p1El);
+
+    const p2El = document.createElement('div');
+    p2El.className = 'pawn p2-pawn';
+    p2El.style.left = (state.p2.c * 11.111 + 5.555) + '%';
+    p2El.style.top = (state.p2.r * 11.111 + 5.555) + '%';
+    layer.appendChild(p2El);
+
+    // 2. Подсветка легальных точек хода (Обязательно по правилам)
+    let moves = getLegalPawnMoves(state.turn);
+    moves.forEach(m => {
+      let dot = document.createElement('div');
+      dot.className = 'legal-dot ' + (state.turn === 1 ? '' : 'p2-dot');
+      dot.style.left = (m.c * 11.111 + 5.555) + '%';
+      dot.style.top = (m.r * 11.111 + 5.555) + '%';
+      dot.onclick = () => { executePawnMove(m.r, m.c); };
+      layer.appendChild(dot);
+    });
+
+    // 3. Подсветка Идеального хода (Только для Синего)
+    if (state.turn === 1 && bestHint) {
+      if (bestHint.type === 'move') {
+        let hintPawn = document.createElement('div');
+        hintPawn.className = 'hint-glow';
+        hintPawn.style.left = (bestHint.c * 11.111 + 5.555) + '%';
+        hintPawn.style.top = (bestHint.r * 11.111 + 5.555) + '%';
+        layer.appendChild(hintPawn);
+      } else {
+        let hintWall = document.createElement('div');
+        hintWall.className = 'hint-wall-glow ' + bestHint.type;
+        if (bestHint.type === 'h') {
+          hintWall.style.left = (bestHint.c * 11.111) + '%';
+          hintWall.style.top = ((bestHint.r + 1) * 11.111) + '%';
+        } else {
+          hintWall.style.left = ((bestHint.c + 1) * 11.111) + '%';
+          hintWall.style.top = (bestHint.r * 11.111) + '%';
+        }
+        layer.appendChild(hintWall);
+      }
+    }
+
+    // 4. Отрисовка поставленных стен
+    for(let r=0; r<8; r++) {
+      for(let c=0; c<8; c++) {
+        if(state.hWalls[r][c]) {
+          let w = document.createElement('div');
+          w.className = 'placed-wall h';
+          w.style.left = (c * 11.111) + '%';
+          w.style.top = ((r + 1) * 11.111) + '%';
+          layer.appendChild(w);
+        }
+        if(state.vWalls[r][c]) {
+          let w = document.createElement('div');
+          w.className = 'placed-wall v';
+          w.style.left = ((c + 1) * 11.111) + '%';
+          w.style.top = (r * 11.111) + '%';
+          layer.appendChild(w);
+        }
+      }
+    }
+  }
+
+
+  // === DRAG AND DROP (ПЕРЕТАСКИВАНИЕ СТЕН) ===
+  let activeDragType = null;
+  const ghostWall = document.getElementById('ghost-wall');
+  const boardEl = document.getElementById('board-ui');
+
+  function startDrag(type, e) {
+    // Блокируем, если нет стен
+    if ((state.turn === 1 && state.p1.walls <= 0) || (state.turn === 2 && state.p2.walls <= 0)) return;
+    
+    activeDragType = type;
+    ghostWall.className = 'ghost-wall ' + type;
+    ghostWall.style.display = 'block';
+    
+    document.addEventListener('pointermove', moveDrag, {passive: false});
+    document.addEventListener('pointerup', endDrag);
+    moveDrag(e); // Сразу вычисляем позицию
+  }
+
+  function moveDrag(e) {
+    if (!activeDragType) return;
+    if (e.cancelable) e.preventDefault(); // Фикс скролла на мобилках
+
+    let rect = boardEl.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+    let cellW = rect.width / 9;
+    let cellH = rect.height / 9;
+
+    // Вычисляем к какому слоту стенки ближе палец
+    let c = Math.round(x / cellW) - 1;
+    let r = Math.round(y / cellH) - 1;
+    
+    // Ограничиваем рамками сетки (0..7)
+    c = Math.max(0, Math.min(7, c));
+    r = Math.max(0, Math.min(7, r));
+
+    let valid = isValidWallPlacement(r, c, activeDragType);
+    ghostWall.dataset.valid = valid;
+    ghostWall.dataset.r = r;
+    ghostWall.dataset.c = c;
+    
+    // Красим призрачную стенку
+    ghostWall.style.backgroundColor = valid ? 'var(--wall-hint)' : 'var(--wall-error)';
+    ghostWall.style.boxShadow = valid ? '0 0 15px var(--wall-hint)' : '0 0 15px var(--wall-error)';
+
+    // Позиционируем поверх доски
+    if (activeDragType === 'h') {
+      ghostWall.style.left = (rect.left + c * cellW) + 'px';
+      ghostWall.style.top = (rect.top + (r + 1) * cellH) + 'px';
+      ghostWall.style.width = (cellW * 2) + 'px';
+    } else {
+      ghostWall.style.left = (rect.left + (c + 1) * cellW) + 'px';
+      ghostWall.style.top = (rect.top + r * cellH) + 'px';
+      ghostWall.style.height = (cellH * 2) + 'px';
+    }
+  }
+
+  function endDrag(e) {
+    if (!activeDragType) return;
+    document.removeEventListener('pointermove', moveDrag);
+    document.removeEventListener('pointerup', endDrag);
+
+    // Если отпустили в зеленой зоне - ставим стену
+    if (ghostWall.dataset.valid === 'true') {
+      let r = parseInt(ghostWall.dataset.r);
+      let c = parseInt(ghostWall.dataset.c);
+      executeWallPlacement(r, c, activeDragType);
+    }
+    
+    ghostWall.style.display = 'none';
+    activeDragType = null;
+  }
+
+  // Запуск первого рендера
+  updateGameState();
+
+</script>
+</body>
+</html>
