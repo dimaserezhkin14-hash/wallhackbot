@@ -6,28 +6,42 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Emscripten toolchain
+      - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
 
-      - name: Compile C++ to WebAssembly
+      - name: Compile C++ to WASM
         run: |
           emcc engine.cpp -O3 -s WASM=1 \
-            -s EXPORTED_FUNCTIONS="['_solve_quoridor', '_malloc', '_free']" \
-            -s EXPORTED_RUNTIME_METHODS="['cwrap', 'getValue', 'setValue']" \
-            -s ALLOW_MEMORY_GROWTH=1 \
+            -s NO_EXIT_RUNTIME=1 \
+            -s "EXPORTED_RUNTIME_METHODS=['ccall','cwrap']" \
             -o engine.js
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
