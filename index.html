@@ -1265,6 +1265,59 @@ if(finishBarInit) finishBarInit.classList.toggle("visible", gameMode==="race");
 state=initialState();
 render(false);
 computeEngine();
+  // --- КРИПТО-ПРОВЕРКА ДОСТУПА ПО ПРОМОКОДУ ---
+(async function verifyClientAccess() {
+  const SECRET = "wallrush_ultra_secret_key_2026";
+  const hash = window.location.hash.substring(1);
+  const params = new URLSearchParams(hash);
+  const uid = params.get("uid");
+  const exp = parseInt(params.get("exp"), 10);
+  const sign = params.get("sign");
+  
+  const now = Math.floor(Date.now() / 1000);
+  let isValid = false;
+
+  if (uid && exp && sign && exp > now) {
+    try {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const signatureBuffer = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(`${uid}:${exp}`)
+      );
+      const computedSign = Array.from(new Uint8Array(signatureBuffer))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+      
+      if (computedSign === sign) {
+        isValid = true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  if (!isValid) {
+    document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0b111e;color:#fff;padding:24px;text-align:center;font-family:Inter,system-ui,sans-serif;">
+        <div style="font-size:56px;margin-bottom:12px;">🔒</div>
+        <h2 style="font-size:20px;font-weight:950;margin-bottom:8px;">Нет активной подписки</h2>
+        <p style="color:#8b9ab3;font-size:13.5px;line-height:1.5;margin-bottom:24px;">
+          Для получения доступа приобретите подписку в Telegram:<br>
+          <a href="https://t.me/quf97" target="_blank" style="color:#347fff;text-decoration:none;font-weight:900;font-size:15px;display:inline-block;margin-top:6px;">@quf97</a>
+        </p>
+        <button onclick="window.Telegram?.WebApp?.close()" style="background:#347fff;color:#fff;border:0;padding:12px 28px;border-radius:12px;font-weight:900;font-size:13px;cursor:pointer;box-shadow:0 4px 14px #2768dd44;">Закрыть</button>
+      </div>
+    `;
+  }
+})();
 </script>
 </body>
 </html>
