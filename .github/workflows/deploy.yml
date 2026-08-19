@@ -1,0 +1,33 @@
+name: Build and Deploy WASM Engine
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten toolchain
+        uses: mymindstorm/setup-emsdk@v14
+
+      - name: Compile C++ to WebAssembly
+        run: |
+          emcc engine.cpp -O3 -s WASM=1 \
+            -s EXPORTED_FUNCTIONS="['_solve_quoridor', '_malloc', '_free']" \
+            -s EXPORTED_RUNTIME_METHODS="['cwrap', 'getValue', 'setValue']" \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -o engine.js
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
