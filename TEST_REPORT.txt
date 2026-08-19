@@ -1,0 +1,34 @@
+WallHack Pro native C++/WASM engine — verification report
+
+Build
+- C++ engine compiled to WebAssembly with clang -O3 -flto.
+- Web UI calls the engine from engine.worker.js, so search does not block the page.
+- UI search budget: 17,000 nodes; main-thread safety timeout: 1.9 s.
+
+Tests
+1) Opening position (9x9, 10 walls each):
+   result: step to row 7, column 4
+   nodes: 17,037
+   depth: 4
+   time: 1.116 s
+
+2) Forced tactical block (engine at 7,3; opponent at 7,4):
+   result: wall at row 7, column 4, horizontal
+   This blocks the opponent’s immediate goal edge.
+   nodes: 17,038
+   depth: 4
+   time: 0.641 s
+
+3) Ten additional legal-position checks:
+   all 10 returned a non-empty legal move code.
+   average time: 0.929 s
+   maximum time: 1.398 s
+   depths reached: 3–4
+
+4) JavaScript syntax check:
+   index.html script: PASS
+
+Important limitation
+- This is a strong compact Quoridor search, not a solved tablebase or tournament-strength perfect player.
+- The engine prioritizes tactical walls on the opponent’s actual shortest path, uses alpha-beta, iterative deepening and a transposition table, and validates wall legality/path existence.
+- The UI has a 1.9 s safety fallback so a slow phone will not freeze.
