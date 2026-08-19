@@ -79,7 +79,6 @@ int minimax(GameState s, int depth, int alpha, int beta, bool isMax, int rows, i
 
     Pos curP = isMax ? s.me : s.opp;
     int goal = isMax ? myGoal : oppGoal;
-    int oppG = isMax ? oppGoal : myGoal;
     int curWalls = isMax ? s.meWalls : s.oppWalls;
 
     std::vector<Move> moves;
@@ -165,7 +164,6 @@ extern "C" {
         int bestScore = -999999;
         int bestMoveEncoded = 0;
 
-        // Поиск с глубиной 4 полухода на C++
         for (int i = 0; i < 4; ++i) {
             int nr = s.me.r + DIRS[i][0], nc = s.me.c + DIRS[i][1];
             if (inBoard(nr, nc, rows) && !edgeBlocked(s.me.r, s.me.c, nr, nc, s)) {
@@ -204,5 +202,9 @@ extern "C" {
             }
         }
         return bestMoveEncoded;
+    }
+
+    int main() {
+        return 0;
     }
 }
