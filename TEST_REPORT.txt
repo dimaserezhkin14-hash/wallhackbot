@@ -1,0 +1,40 @@
+HYBRID FINAL TEST REPORT — 2026-08-19
+
+IMPORTANT FIX FROM V3
+The browser wall encoder previously converted the orientation string incorrectly. 'h' and 'v' were not encoded distinctly. This build explicitly maps h=0, v=1 before sending walls to WASM. This was a major correctness bug and could make the engine evaluate the wrong board.
+
+ENGINE
+- C++ compiled to wasm32 with clang++ -O3.
+- Iterative deepening alpha-beta.
+- 262,144-entry transposition table.
+- Tactical wall candidate scoring/ordering.
+- Root wall candidate allowance increased to 128.
+- Deeper-node wall allowance increased to 80.
+- Faster pawn move ordering avoids repeated full evaluation calls.
+- Browser budget: 25,000 nodes; hard UI timeout: 1.85s.
+
+BASIC WASM CHECK
+- Exports verified: best_move, nodes_used, depth_reached.
+- Start position with 65,000-node budget: legal move returned; depth 3 reached in the local Node/WASM test environment.
+- 25,000-node start-position benchmark: about 1.3–1.6s locally depending on run.
+
+FULL-PARTY SANITY TESTS
+Using the same rules simulator and the compiled WASM engine:
+- 10 engine-vs-engine games at 2,000-node budget: 10 wins for side A, 0 losses, 0 illegal moves, 0 draws; average 35 plies.
+- 10 engine-vs-shortest-path games, engine first: 10-0, 0 illegal.
+- 10 engine-vs-shortest-path games, opponent first: 10-0, 0 illegal.
+- 10 engine-vs-greedy-wall games, engine first: 10-0, 0 illegal.
+- 10 engine-vs-greedy-wall games, opponent first: 10-0, 0 illegal.
+
+These opponents are deliberately simple baselines. These results are correctness/sanity tests, not proof that the engine is unbeatable against a strong human or a strong Quoridor engine.
+
+UI CONTRACT
+- Engine does NOT automatically make the move.
+- “Применить совет” is the only code path that applies engineMove.
+- Search is isolated in a Web Worker.
+- Search indicator has a hard timeout and cannot remain visible forever.
+- WASM move is checked against the page's legal move generator before it is displayed.
+- JavaScript source and worker source pass syntax checks.
+
+ALPHAZERO NOTE
+No fake/untrained AlphaZero network is included. AlphaZero-style Quoridor requires a trained policy/value network plus MCTS and self-play training. Adding an untrained network would make the bot weaker, not stronger. This build therefore uses the strongest deterministic search components that can be shipped as a small browser-only WASM engine without pretending to have a trained neural model.
