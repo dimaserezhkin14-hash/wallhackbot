@@ -1265,14 +1265,25 @@ if(finishBarInit) finishBarInit.classList.toggle("visible", gameMode==="race");
 state=initialState();
 render(false);
 computeEngine();
-  // --- КРИПТО-ПРОВЕРКА ДОСТУПА ПО ПРОМОКОДУ ---
+// --- КРИПТО-ПРОВЕРКА ДОСТУПА ПО ПРОМОКОДУ С СОХРАНЕНИЕМ СЕССИИ ---
 (async function verifyClientAccess() {
   const SECRET = "wallrush_ultra_secret_key_2026";
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
-  const uid = params.get("uid");
-  const exp = parseInt(params.get("exp"), 10);
-  const sign = params.get("sign");
+  
+  let uid = params.get("uid");
+  let exp = parseInt(params.get("exp"), 10);
+  let sign = params.get("sign");
+
+  // Если параметров нет в ссылке (открыли через кнопку меню/напрямую), проверяем кэш
+  if (!uid || !exp || !sign) {
+    try {
+      const cached = JSON.parse(localStorage.getItem("wr_sub_auth") || "{}");
+      uid = cached.uid;
+      exp = parseInt(cached.exp, 10);
+      sign = cached.sign;
+    } catch(e) {}
+  }
   
   const now = Math.floor(Date.now() / 1000);
   let isValid = false;
@@ -1298,6 +1309,10 @@ computeEngine();
       
       if (computedSign === sign) {
         isValid = true;
+        // Сохраняем действующий токен в память устройства
+        try {
+          localStorage.setItem("wr_sub_auth", JSON.stringify({ uid, exp, sign }));
+        } catch(e) {}
       }
     } catch (e) {
       console.error(e);
@@ -1305,6 +1320,7 @@ computeEngine();
   }
 
   if (!isValid) {
+    try { localStorage.removeItem("wr_sub_auth"); } catch(e) {}
     document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0b111e;color:#fff;padding:24px;text-align:center;font-family:Inter,system-ui,sans-serif;">
         <div style="font-size:56px;margin-bottom:12px;">🔒</div>
@@ -1318,6 +1334,7 @@ computeEngine();
     `;
   }
 })();
+    
 </script>
 </body>
 </html>
